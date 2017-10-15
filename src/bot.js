@@ -1,3 +1,5 @@
+//Ask for Legal adivce
+
 const Bot = require('./lib/Bot')
 const SOFA = require('sofa-js')
 const Fiat = require('./lib/Fiat')
@@ -26,22 +28,107 @@ bot.onEvent = function(session, message) {
   }
 }
 
+var question = "No questions"
+var answer = null;
 function onMessage(session, message) {
-  welcome(session)
+  switch (session.get('convostate')){
+    case 'question':
+      question = message.body
+      session.reply(SOFA.Message({
+      body: 'How much are you willing to award the first advisor who gives you a satisfactory answer?\n\nAwaiting for response....\n\n(A satisfactory response appears)',
+      controls: [
+      {
+        type:"group",
+        label: 'Pay with USD',
+        controls:[
+        {type: 'button', label: '$1', value: 'one'},
+        {type: 'button', label: '$2', value: 'two'},
+        {type: 'button', label: '$5', value: 'five'}
+        ]
+      },
+      {
+        type:"group",
+        label: 'Pay with Ether',
+        controls: [
+        {type:'button',label: '0.01 ETH', value: 'one_eth'},
+        {type:'button',label: '0.02 ETH', value: 'two_eth'},
+        {type:'button',label: '0.05 ETH', value: 'five_eth'}
+        ]
+      },
+      {value: 'button', label: 'USD/ETH Rates', action: "Webview::https://www.coinbase.com/charts"}
+
+
+      ],
+      showKeyboard: false,
+    }))
+      session.set('convostate', null)
+      break
+
+    case 'answer':
+      answer = message.body
+      session.reply("Thank you for your response, we will notify you if your response is accepted!")
+      session.set('convostate', null)
+      break
+
+    default:
+      welcome(session);
+      break
+
+  }
+
+
+
 }
 
 function onCommand(session, command) {
   switch (command.content.value) {
-    case 'ping':
-      pong(session)
+    // case 'ping':
+    //   pong(session)
+    //   break
+    // case 'count':
+    //   count(session)
+    //   break
+    // case 'donate':
+    //   donate(session)
+    //   break
+    case 'adv':
+      advisor(session);
       break
-    case 'count':
-      count(session)
+    case 'inq':
+      inquirer(session);
       break
-    case 'donate':
-      donate(session)
+    case 'yes':
+      list(session);
       break
-    }
+    case 'exit':
+      welcome(session);
+      break
+    case 'one':
+      //wait answer
+      fiat_payment(session,1)
+      break
+    case 'two':
+      //wait answer
+      fiat_payment(session,2)
+      break
+    case 'five':
+      fiat_payment(session,5)
+      break
+    case 'one_eth':
+      eth_payment(session,0.01)
+      break
+    case 'two_eth':
+      eth_payment(session,0.02)
+      break
+    case 'five_eth':
+      eth_payment(session,0.05)
+      break
+    
+    case 'ans':
+      session.set('convostate', 'answer')
+    //store answer
+      break
+  }
 }
 
 function onPayment(session, message) {
@@ -69,35 +156,90 @@ function onPayment(session, message) {
 // STATES
 
 function welcome(session) {
-  sendMessage(session, `Hello Token!`)
+    session.reply(SOFA.Message({
+    body: 'Hello, welcome to Law4all. Are you here for an Inquiry or as a Certified Legal Advisor?',
+    controls: [
+        {type: 'button', label: 'Advisor', value: 'adv'},
+        {type: 'button', label: 'Inquirer', value: 'inq'}
+      ],
+    showKeyboard: false,
+  }))
+
+
 }
 
-function pong(session) {
-  sendMessage(session, `Pong`)
+function advisor(session){
+
+    session.reply(SOFA.Message({
+    body: 'Do you want to see a list of inquiries?',
+    controls: [
+        {type: 'button', label: 'Yes', value: 'yes'}
+      ],
+    showKeyboard: false,
+  }))
 }
 
-// example of how to store state on each user
-function count(session) {
-  let count = (session.get('count') || 0) + 1
-  session.set('count', count)
-  sendMessage(session, `${count}`)
+function inquirer(session){
+    session.reply(SOFA.Message({
+    body: 'Please enter your legal question below:',
+    showKeyboard: true,
+  }))
+    session.set('convostate', 'question')
 }
 
-function donate(session) {
-  // request $1 USD at current exchange rates
-  Fiat.fetch().then((toEth) => {
-    session.requestEth(toEth.USD(1))
+
+function list (session){
+    session.reply(SOFA.Message({
+    body: 'Here is a list of current inquiries:\n'.concat(question).concat('\n\nWould you like to answer any of the listed inquiries?') ,
+    controls: [
+        {type: 'button', label: question, value: 'ans'},
+        {type: 'button', label: 'Exit', value: 'exit'}
+      ],
+    showKeyboard: false,
+  }))
+}
+
+function fiat_payment(session,amount){
+    Fiat.fetch(10*1000).then((toEth) => {
+    session.requestEth(toEth.USD(amount), 'FOR FAIRNESS')
   })
 }
 
+function eth_payment(session,amount){
+  session.requestEth(amount, "FOR FAIRNESS")
+}
+
+// function answer (session){
+//   //code for ether quotes
+//   sendMessage(session,'How many dollars worth of ether do you want to sell?', 4)
+// }
+
+// function pong(session) {
+//   sendMessage(session, `Pong`)
+// }
+
+// example of how to store state on each user
+// function count(session) {
+//   let count = (session.get('count') || 0) + 1
+//   session.set('count', count)
+//   sendMessage(session, `${count}`)
+// }
+
+// function donate(session) {
+//   // request $1 USD at current exchange rates
+//   Fiat.fetch().then((toEth) => {
+//     session.requestEth(toEth.USD(1))
+//   })
+// }
+
 // HELPERS
 
-function sendMessage(session, message) {
-  let controls = [
-    {type: 'button', label: 'Ping', value: 'ping'},
-    {type: 'button', label: 'Count', value: 'count'},
-    {type: 'button', label: 'Donate', value: 'donate'}
-  ]
+function sendMessage(session, message, entry) {
+
+      let controls = [
+        {type: 'button', label: 'Exit', value: 'exit'}
+      ]
+
   session.reply(SOFA.Message({
     body: message,
     controls: controls,
